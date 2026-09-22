@@ -1,0 +1,29 @@
+{
+  "name": "highq-tools",
+  "version": "0.1.0",
+  "description": "TypeScript utilities for working with HighQ iSheets from browser code.",
+  "main": "dist/highq-tools.cjs.js",
+  "module": "dist/highq-tools.esm.js",
+  "browser": "dist/highq-tools.iife.js",
+  "types": "dist/types/index.d.ts",
+  "scripts": {
+    "build": "rollup -c",
+    "dev": "rollup -c -w",
+    "typecheck": "tsc --noEmit",
+    "test": "echo \"No automated tests yet\""
+  },
+  "keywords": [
+    "highq",
+    "isheets",
+    "sdk",
+    "legaltech"
+  ],
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^25.0.0",
+    "@rollup/plugin-node-resolve": "^15.0.0",
+    "rollup": "^4.0.0",
+    "rollup-plugin-typescript2": "^0.36.0",
+    "typescript": "^5.0.0"
+  }
+}

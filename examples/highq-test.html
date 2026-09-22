@@ -1,0 +1,338 @@
+<!--
+  HighQ Tools test page.
+
+  IMPORTANT:
+  Replace the constants below before running this in a real HighQ site.
+  The buttons intentionally avoid executing write operations automatically.
+-->
+
+<div style="font-family: sans-serif; display: grid; gap: 8px; max-width: 700px;">
+  <h3>HighQ Tools test</h3>
+
+  <button id="btnFetch">1. Fetch iSheet data</button>
+  <button id="btnCreate">2. Create test item</button>
+  <button id="btnRelated">3. Build related SuperSheet</button>
+
+  <div>
+    <input type="file" id="attachmentFile" />
+    <button id="btnAttachment">4. Upload + attach file</button>
+  </div>
+
+  <button id="btnUploadChanges">5. Edit SuperSheet + upload changes</button>
+
+  <pre id="output" style="white-space: pre-wrap; border: 1px solid #ddd; padding: 12px;"></pre>
+</div>
+
+<script>
+  // =========================================================
+  // CONFIGURATION — REPLACE WITH YOUR REAL VALUES
+  // =========================================================
+  const FILE_ID_LIB = 153846;
+
+  // Replace this placeholder with the target HighQ instance when running locally.
+  const API_BASE_URL =
+    "https://example.invalid/anonymized-highq/api/3";
+
+  const ISHEET_ID_EMPRESA = 6377;
+  const ISHEET_ID_EMPLEADO = 6378;
+
+  // Attachment column on EMPLEADO.
+  const EMPLEADO_ATTACHMENT_COLUMN_ID = "180238";
+
+  // Relation: employee row -> company row.
+  // Must match the normalized key returned by fetchIsheetData().
+  const EMPLEADO_EMPRESA_LOOKUP_KEY = "empresa";
+
+  // Example writable schema.
+  const empresaSchema = {
+    nombre: {
+      colId: "180231",
+      type: "text"
+    },
+    tiposociedad: {
+      colId: "180232",
+      type: "choice"
+    }
+  };
+
+  let latestSuperSheet = null;
+
+  // =========================================================
+  // LOADER
+  // =========================================================
+  async function loadHighQScriptFromFileId(fileId) {
+    const url =
+      `/anonymized-highq/api/1/files/${fileId}/content`;
+
+    const res = await fetch(url, {
+      credentials: "include"
+    });
+
+    if (!res.ok) {
+      throw new Error(
+        `Error al descargar el script (${res.status} ${res.statusText})`
+      );
+    }
+
+    const code = await res.text();
+
+    const script = document.createElement("script");
+    script.type = "text/javascript";
+    script.text = code;
+    document.head.appendChild(script);
+  }
+
+  function log(label, value) {
+    console.log(label, value);
+
+    const output = document.getElementById("output");
+    let printable;
+
+    try {
+      printable = JSON.stringify(value, null, 2);
+    } catch {
+      printable = String(value);
+    }
+
+    output.textContent =
+      `${label}\n${printable}\n\n` + output.textContent;
+  }
+
+  window.highQToolsReady = (async () => {
+    await loadHighQScriptFromFileId(FILE_ID_LIB);
+
+    HighQTools.config.setBaseUrl(API_BASE_URL);
+
+    log("HighQTools loaded", {
+      version: HighQTools.version,
+      baseUrl: HighQTools.config.getBaseUrl(),
+      exports: Object.keys(HighQTools)
+    });
+
+    return HighQTools;
+  })();
+
+  // =========================================================
+  // 1. FETCH
+  // =========================================================
+  document.getElementById("btnFetch").addEventListener(
+    "click",
+    async () => {
+      try {
+        await window.highQToolsReady;
+
+        const result =
+          await HighQTools.fetchIsheetData(
+            ISHEET_ID_EMPRESA
+          );
+
+        log("fetchIsheetData()", result);
+      } catch (error) {
+        console.error(error);
+        alert("Fetch failed. Check console.");
+      }
+    }
+  );
+
+  // =========================================================
+  // 2. CREATE ITEM
+  // =========================================================
+  document.getElementById("btnCreate").addEventListener(
+    "click",
+    async () => {
+      try {
+        await window.highQToolsReady;
+
+        const newItem = {
+          nombre:
+            "Empresa prueba " +
+            new Date().toISOString(),
+          tiposociedad: "S.L"
+        };
+
+        const created =
+          await HighQTools.saveNewItem(
+            ISHEET_ID_EMPRESA,
+            newItem,
+            empresaSchema
+          );
+
+        log("saveNewItem()", created);
+      } catch (error) {
+        console.error(error);
+        alert("Create failed. Check console.");
+      }
+    }
+  );
+
+  // =========================================================
+  // 3. RELATED DATA
+  // =========================================================
+  document.getElementById("btnRelated").addEventListener(
+    "click",
+    async () => {
+      try {
+        await window.highQToolsReady;
+
+        latestSuperSheet =
+          await HighQTools.getRelated(
+            {
+              empresas: ISHEET_ID_EMPRESA,
+              empleados: ISHEET_ID_EMPLEADO
+            },
+            {
+              relations: [
+                {
+                  from: "empleados",
+                  column: EMPLEADO_EMPRESA_LOOKUP_KEY,
+                  to: "empresas",
+                  many: false
+                }
+              ]
+            }
+          );
+
+        log("getRelated()", latestSuperSheet);
+      } catch (error) {
+        console.error(error);
+        alert("getRelated failed. Check console.");
+      }
+    }
+  );
+
+  // =========================================================
+  // 4. ATTACHMENT
+  // =========================================================
+  document.getElementById("btnAttachment").addEventListener(
+    "click",
+    async () => {
+      try {
+        await window.highQToolsReady;
+
+        const fileInput =
+          document.getElementById("attachmentFile");
+
+        const file =
+          fileInput.files && fileInput.files[0];
+
+        if (!file) {
+          alert("Select a file first.");
+          return;
+        }
+
+        const { rows } =
+          await HighQTools.fetchIsheetData(
+            ISHEET_ID_EMPLEADO
+          );
+
+        const itemId = rows[0]?.itemID;
+
+        if (!itemId) {
+          throw new Error(
+            "No employee item was available for the attachment test."
+          );
+        }
+
+        const upload =
+          await HighQTools.uploadAttachment(
+            ISHEET_ID_EMPLEADO,
+            {
+              file,
+              filename: file.name
+            }
+          );
+
+        if (!upload.attachmentId) {
+          throw new Error(
+            "HighQ did not return an attachmentId."
+          );
+        }
+
+        await HighQTools.attachAttachmentToItem(
+          ISHEET_ID_EMPLEADO,
+          itemId,
+          EMPLEADO_ATTACHMENT_COLUMN_ID,
+          upload.attachmentId,
+          {
+            existingAttachmentIds: []
+          }
+        );
+
+        log("Attachment uploaded and attached", {
+          itemId,
+          ...upload
+        });
+      } catch (error) {
+        console.error(error);
+        alert("Attachment test failed. Check console.");
+      }
+    }
+  );
+
+  // =========================================================
+  // 5. UPLOAD CHANGES
+  // =========================================================
+  document.getElementById("btnUploadChanges").addEventListener(
+    "click",
+    async () => {
+      try {
+        await window.highQToolsReady;
+
+        if (!latestSuperSheet) {
+          latestSuperSheet =
+            await HighQTools.getRelated(
+              {
+                empresas: ISHEET_ID_EMPRESA,
+                empleados: ISHEET_ID_EMPLEADO
+              },
+              {
+                relations: [
+                  {
+                    from: "empleados",
+                    column:
+                      EMPLEADO_EMPRESA_LOOKUP_KEY,
+                    to: "empresas",
+                    many: false
+                  }
+                ]
+              }
+            );
+        }
+
+        const firstCompany =
+          latestSuperSheet.sheets.empresas.rows[0];
+
+        if (!firstCompany) {
+          throw new Error(
+            "No company row found to edit."
+          );
+        }
+
+        // Change a writable text field in memory.
+        firstCompany.nombre =
+          `${firstCompany.nombre || ""} [SDK edit]`;
+
+        await HighQTools.uploadChanges(
+          latestSuperSheet,
+          {
+            schemas: {
+              empresas: empresaSchema,
+
+              // uploadChanges expects a schema for every sheet in the
+              // SuperSheet. Use an empty schema for read-only sheets.
+              empleados: {}
+            }
+          }
+        );
+
+        log(
+          "uploadChanges() completed",
+          firstCompany
+        );
+      } catch (error) {
+        console.error(error);
+        alert("uploadChanges failed. Check console.");
+      }
+    }
+  );
+</script>
