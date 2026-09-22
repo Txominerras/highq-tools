@@ -63,15 +63,15 @@ await HighQTools.attachAttachmentToItem(
 
 const superSheet = await HighQTools.getRelated(
   {
-    empresas: 123,
-    empleados: 456
+    companies: 123,
+    employees: 456
   },
   {
     relations: [
       {
-        from: "empleados",
-        column: "empresa",
-        to: "empresas",
+        from: "employees",
+        column: "company",
+        to: "companies",
         many: false
       }
     ]
@@ -80,8 +80,8 @@ const superSheet = await HighQTools.getRelated(
 
 await HighQTools.uploadChanges(superSheet, {
   schemas: {
-    empleados: {
-      nombre: { colId: "123456", type: "text" }
+    employees: {
+      name: { colId: "123456", type: "text" }
     }
   }
 });
